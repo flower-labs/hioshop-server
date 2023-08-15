@@ -1,14 +1,14 @@
-const Base = require("./base.js");
+const Base = require('./base.js');
 module.exports = class extends Base {
   // 获取可预约项目列表
   async indexAction() {
-    const model = this.model("reserve");
+    const model = this.model('reserve');
     const data = await model
       .limit(10)
       .where({
         is_delete: 0,
       })
-      .order("id ASC")
+      .order('id ASC')
       .select();
 
     return this.success({
@@ -19,13 +19,13 @@ module.exports = class extends Base {
   // 查询当前用户的订单信息
   async orderAction() {
     const userId = this.getLoginUserId();
-    const model = this.model("reserve_order");
+    const model = this.model('reserve_order');
     const data = await model
       .where({
         user_id: userId,
         is_delete: 0,
       })
-      .order("id ASC")
+      .order('id ASC')
       .select();
 
     return this.success({
@@ -62,24 +62,14 @@ module.exports = class extends Base {
 
   generateTimestampsFromNow(date) {
     const result = [];
-    let now;
-    if (this.isToday(date)) {
-      // 如果是今天的日期，则获取当前时间
-      now = Math.floor(new Date().getTime() / 1000); // 获取当前时间戳
-    } else {
-      // 不是今天则从00:00:00开始计算
-      now = this.getStartOfDay(date) / 1000;
-    }
-
     const endOfDay = new Date(date * 1000).setHours(24, 0, 0, 0) / 1000; // 获取今天24:00的时间戳
-    
-    if (
-      new Date().getHours() > 21 ||
-      (new Date().getHours() > 20 && new Date().getMinutes() > 30)
-    ) {
+    const hoursTime = new Date(date * 1000).getHours();
+    const minutesTime = new Date(date * 1000).getMinutes();
+
+    if (hoursTime > 21 || (hoursTime > 20 && minutesTime > 30)) {
       return [];
     }
-    for (let i = now; i < endOfDay; i++) {
+    for (let i = date; i < endOfDay; i++) {
       // 遍历时间戳范围内的每一秒
       const d = new Date(i * 1000);
       if (d.getHours() >= 8 && d.getHours() <= 20) {
@@ -97,17 +87,21 @@ module.exports = class extends Base {
   // 生成可预约时间列表
   async availableAction() {
     // 预定日期
-    const reserveDate = this.post("reserve_date");
+    const reserveDate = this.post('reserve_date');
     // 服务类型ID
-    const reserveIds = this.post("reserve_ids");
-    const availableTimeList = this.generateTimestampsFromNow(reserveDate).map(
-      (item) => ({
-        time: item,
-        available_position: 12,
-        reserve_able: true,
-      })
+    const reserveIds = this.post('reserve_ids');
+    const availableTimeList = await Promise.all(
+      this.generateTimestampsFromNow(reserveDate).map(async item => {
+        const remainCount = await this.model('reserve').getRemainPositions(item, 12);
+        return {
+          time: item,
+          available_position: remainCount,
+          reserve_able: true,
+        };
+      }),
     );
-    const availableReserveList = (reserveIds || []).map((item) => ({
+    
+    const availableReserveList = (reserveIds || []).map(item => ({
       service_id: item,
       available_list: availableTimeList,
     }));
@@ -129,23 +123,23 @@ module.exports = class extends Base {
      * 备注 remark(可选)
      */
     const userId = this.getLoginUserId();
-    const reserveId = this.post("reserve_id");
-    const reservePrice = this.post("reserve_price");
-    const reserveTime = this.post("reserve_time");
-    const phoneNumber = this.post("phone_number");
-    const plateNumber = this.post("plate_number");
-    const remark = this.post("remark");
-    const reserveOrderSN = this.model("reserve").generateOrderId();
+    const reserveId = this.post('reserve_id');
+    const reservePrice = this.post('reserve_price');
+    const reserveTime = this.post('reserve_time');
+    const phoneNumber = this.post('phone_number');
+    const plateNumber = this.post('plate_number');
+    const remark = this.post('remark');
+    const reserveOrderSN = this.model('reserve').generateOrderId();
 
     // 查询reserveId对应的预约信息
-    const reserveInfo = await this.model("reserve")
+    const reserveInfo = await this.model('reserve')
       .where({
         id: reserveId,
       })
       .find();
 
     if (think.isEmpty(reserveInfo) || reserveInfo.is_delete == 1) {
-      return this.fail(400, "预约服务已下架，请返回主页重新操作");
+      return this.fail(400, '预约服务已下架，请返回主页重新操作');
     }
 
     const reserveOrderData = {
@@ -162,33 +156,30 @@ module.exports = class extends Base {
       remark,
     };
 
-    await this.model("reserve_order").add(reserveOrderData);
+    await this.model('reserve_order').add(reserveOrderData);
     // 生成数据对象
     return this.success({
       success: 1,
-      messsage: "预约成功",
+      messsage: '预约成功',
     });
   }
 
   // 取消预约
   async cancelAction() {
     // 根据前端传递预约订单id查询订单，需要在订单状态为 待确认|已确认 状态才可以取消预约，
-    const orderId = this.post("order_id");
+    const orderId = this.post('order_id');
     // 查询reserveId对应的预约信息
-    const orderInfo = await this.model("reserve_order")
+    const orderInfo = await this.model('reserve_order')
       .where({
         id: orderId,
       })
       .find();
 
-    if (
-      think.isEmpty(orderInfo) ||
-      !(orderInfo.status === 1001 || orderInfo.status === 1002)
-    ) {
-      return this.fail(400, "预约订单状态异常，请稍后再试");
+    if (think.isEmpty(orderInfo) || !(orderInfo.status === 1001 || orderInfo.status === 1002)) {
+      return this.fail(400, '预约订单状态异常，请稍后再试');
     }
 
-    const succesInfo = await this.model("reserve_order")
+    const succesInfo = await this.model('reserve_order')
       .where({
         id: orderId,
       })

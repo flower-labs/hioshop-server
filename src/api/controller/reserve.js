@@ -25,7 +25,7 @@ module.exports = class extends Base {
         user_id: userId,
         is_delete: 0,
       })
-      .order('id ASC')
+      .order('id DESC')
       .select();
 
     return this.success({
@@ -90,17 +90,18 @@ module.exports = class extends Base {
     const reserveDate = this.post('reserve_date');
     // 服务类型ID
     const reserveIds = this.post('reserve_ids');
-    const availableTimeList = await Promise.all(
-      this.generateTimestampsFromNow(reserveDate).map(async item => {
-        const remainCount = await this.model('reserve').getRemainPositions(item, 12);
+    // TODO: 当前查询的是所有的订单，后面最近7天订单即可
+    const allReservedOrders = await this.model('reserve_order').where({ is_delete: 0 }).select();
+    const maxPosition = 12;
+    const availableTimeList = this.generateTimestampsFromNow(reserveDate).map( item => {
+        const remainCount = maxPosition - allReservedOrders.filter(record => record.reserve_time === item).length;
         return {
           time: item,
           available_position: remainCount,
           reserve_able: true,
         };
-      }),
-    );
-    
+      });
+
     const availableReserveList = (reserveIds || []).map(item => ({
       service_id: item,
       available_list: availableTimeList,

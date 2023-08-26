@@ -55,4 +55,18 @@ module.exports = class extends think.Model {
     const usedCount = reserveInfo.length;
     return totalCount - usedCount;
   }
+
+  /** 生成最近7天时间戳 */
+  generateSevenDayTimestamp() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const sevenDay = new Date(today);
+    sevenDay.setDate(today.getDate() + 7);
+    
+    // 将日期转换为时间戳
+    const todayTimestamp = today.getTime() / 1000;
+    const sevenDayTimestamp = sevenDay.getTime() / 1000;
+    return [todayTimestamp, sevenDayTimestamp];
+  }
+
 };

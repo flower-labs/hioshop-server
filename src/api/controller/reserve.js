@@ -11,8 +11,43 @@ module.exports = class extends Base {
       .order('id ASC')
       .select();
 
+    const [today, sevenDay] = this.model('reserve').generateSevenDayTimestamp();
+    const timePoints = this.generateTimestampPoints(today, sevenDay);
+    // 查询最近7天的订单数据
+    const reserveInfo = await this.model('reserve_order')
+      .where({ reserve_time: { '>': today, '<': sevenDay }, is_delete: 0 })
+      .select();
+
+    // 生成预约页面所需动态数据
+    const reserveDynamicList = data.map(item => {
+      const currentId = String(item.id);
+      const currentReserveRecords = reserveInfo.filter(item => item.reserve_id === String(currentId));
+      const count = currentReserveRecords.length;
+      // 计算最近可预约时间
+      let latestTimestamp = '';
+      for (let i = 0; i < timePoints.length; i++) {
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        if (
+          timePoints[i] > currentTimestamp &&
+          currentReserveRecords.filter(item => item.reserve_time === timePoints[i]).length < 12
+        ) {
+          latestTimestamp = timePoints[i];
+          break;
+        }
+      }
+
+      return {
+        id: currentId,
+        count,
+        latestTimestamp,
+      };
+    });
+
+    // 遍历时间戳，找到第一个已预约的个数小于12的记录。
+
     return this.success({
       reserveList: data,
+      reserveDynamicList,
     });
   }
 
@@ -84,23 +119,44 @@ module.exports = class extends Base {
     return result;
   }
 
+  /** 生成指定时间区间内的时间戳list */
+  generateTimestampPoints(startTime, endTime) {
+    const result = [];
+    // 遍历时间戳范围内的每一秒
+    for (let i = startTime; i < endTime; i++) {
+      const d = new Date(i * 1000);
+      if (d.getHours() >= 8 && d.getHours() <= 20) {
+        if (d.getMinutes() === 0 && d.getSeconds() === 0) {
+          result.push(i); // 整点时间戳
+        }
+        if (d.getMinutes() === 30 && d.getSeconds() === 0) {
+          result.push(i); // 半点时间戳
+        }
+      }
+    }
+    return result;
+  }
+
   // 生成可预约时间列表
   async availableAction() {
     // 预定日期
     const reserveDate = this.post('reserve_date');
     // 服务类型ID
     const reserveIds = this.post('reserve_ids');
-    // TODO: 当前查询的是所有的订单，后面最近7天订单即可
-    const allReservedOrders = await this.model('reserve_order').where({ is_delete: 0 }).select();
+    const [today, sevenDay] = this.model('reserve').generateSevenDayTimestamp();
+    // 查询最近7天订单数据
+    const allReservedOrders = await this.model('reserve_order')
+      .where({ reserve_time: { '>': today, '<': sevenDay }, is_delete: 0 })
+      .select();
     const maxPosition = 12;
-    const availableTimeList = this.generateTimestampsFromNow(reserveDate).map( item => {
-        const remainCount = maxPosition - allReservedOrders.filter(record => record.reserve_time === item).length;
-        return {
-          time: item,
-          available_position: remainCount,
-          reserve_able: true,
-        };
-      });
+    const availableTimeList = this.generateTimestampsFromNow(reserveDate).map(item => {
+      const remainCount = maxPosition - allReservedOrders.filter(record => record.reserve_time === item).length;
+      return {
+        time: item,
+        available_position: remainCount,
+        reserve_able: true,
+      };
+    });
 
     const availableReserveList = (reserveIds || []).map(item => ({
       service_id: item,

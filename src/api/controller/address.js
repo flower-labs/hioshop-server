@@ -3,7 +3,7 @@ const pinyin = require("pinyin");
 const generate = require('nanoid/generate');
 module.exports = class extends Base {
     async getAddressesAction() {
-		const userId = this.getLoginUserId();;
+		const userId = this.getLoginUserId();
         const addressList = await this.model('address').where({
             user_id: userId,
             is_delete: 0

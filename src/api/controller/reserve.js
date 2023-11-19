@@ -53,6 +53,8 @@ module.exports = class extends Base {
 
   // 查询当前用户的订单信息
   async orderAction() {
+    const page = this.post('page');
+    const size = this.post('size');
     const userId = this.getLoginUserId();
     const model = this.model('reserve_order');
     const data = await model
@@ -60,8 +62,11 @@ module.exports = class extends Base {
         user_id: userId,
         is_delete: 0,
       })
-      .order('id DESC')
-      .select();
+      .order({
+        reserve_time: 'desc',
+      })
+      .page(page, size)
+      .countSelect();
 
     return this.success({
       reserveOrderList: data,

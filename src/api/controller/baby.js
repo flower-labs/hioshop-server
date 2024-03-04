@@ -9,16 +9,30 @@ module.exports = class extends Base {
     const size = this.post('size');
     // const userId = this.getLoginUserId();
     const model = this.model('baby');
+    const is_today = this.post('is_today');
+    const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
 
-    const data = await model
-      .order({
-        id: 'desc',
-      })
-      .page(page, size)
-      .countSelect();
+    let babyList = [];
+
+    if (is_today) {
+      babyList = await model
+        .order({
+          start_time: 'desc',
+        })
+        .where({ start_time: { '>=': todayTime }, is_delete: 0 })
+        .countSelect();
+    } else {
+      babyList = await model
+        .order({
+          start_time: 'desc',
+        })
+        .where({ start_time: { '<': todayTime }, is_delete: 0 })
+        .page(page, size)
+        .countSelect();
+    }
 
     return this.success({
-      babyList: data,
+      babyList,
     });
   }
 
@@ -50,5 +64,29 @@ module.exports = class extends Base {
       success: 1,
       messsage: '添加记录成功',
     });
+  }
+
+  // 删除记录
+  async deleteAction() {
+    const record_id = this.post('record_id');
+
+    const orderInfo = await this.model('baby')
+      .where({
+        id: record_id,
+      })
+      .find();
+
+    if (think.isEmpty(orderInfo)) {
+      return this.fail(400, '记录获取异常，请稍后再试');
+    }
+
+    const succesInfo = await this.model('baby')
+      .where({
+        id: record_id,
+      })
+      .update({
+        is_delete: 1,
+      });
+    return this.success(succesInfo);
   }
 };

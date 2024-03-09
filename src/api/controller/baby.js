@@ -19,6 +19,7 @@ module.exports = class extends Base {
         .order({
           start_time: 'desc',
         })
+        .page(page, size)
         .where({ start_time: { '>=': todayTime }, is_delete: 0 })
         .countSelect();
     } else {

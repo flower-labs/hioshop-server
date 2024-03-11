@@ -1,6 +1,7 @@
 const Base = require('./base.js');
 const uuid = require('uuid');
 const moment = require('moment');
+const { isNumber } = require('lodash');
 
 module.exports = class extends Base {
   // 获取记录列表
@@ -34,6 +35,31 @@ module.exports = class extends Base {
 
     return this.success({
       babyList,
+    });
+  }
+
+  // baby记录统计数据
+  async analysisAction() {
+    // const userId = this.getLoginUserId();
+    const duration = this.post('duration');
+    const model = this.model('baby');
+
+    if (!isNumber(duration)) {
+      return this.fail('时间区间参数错误，请检查');
+    }
+
+    const daysBefore = Math.floor(moment().subtract(Number(duration), 'days').startOf('day').valueOf() / 1000);
+
+    let babyAnalysisList = [];
+
+    babyAnalysisList = await model
+      .order({
+        start_time: 'desc',
+      })
+      .where({ start_time: { '>=': daysBefore }, is_delete: 0 }).select();
+
+    return this.success({
+      babyAnalysisList,
     });
   }
 

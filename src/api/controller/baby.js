@@ -56,7 +56,8 @@ module.exports = class extends Base {
       .order({
         start_time: 'desc',
       })
-      .where({ start_time: { '>=': daysBefore }, is_delete: 0 }).select();
+      .where({ start_time: { '>=': daysBefore }, is_delete: 0 })
+      .select();
 
     return this.success({
       babyAnalysisList,
@@ -89,7 +90,7 @@ module.exports = class extends Base {
     // 生成数据对象
     return this.success({
       success: 1,
-      messsage: '添加记录成功',
+      messsage: '新增记录成功',
     });
   }
 
@@ -115,5 +116,36 @@ module.exports = class extends Base {
         is_delete: 1,
       });
     return this.success(succesInfo);
+  }
+
+  async editAction() {
+    // let userId = this.getLoginUserId();
+    const uuid = this.post('uuid');
+    // 记录类型
+    const type = this.post('type');
+    // 喝奶量
+    const drink_amount = this.post('drink_amount');
+    // 备注信息
+    const extra = this.post('extra');
+
+    if (!uuid) {
+      return this.fail('uuid参数错误');
+    }
+
+    const data = {
+      type,
+      drink_amount,
+      extra,
+    };
+
+    await this.model('baby')
+      .where({
+        uuid,
+      })
+      .update(data);
+    return this.success({
+      success: 1,
+      messsage: '编辑记录成功',
+    });
   }
 };

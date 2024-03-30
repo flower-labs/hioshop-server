@@ -2,7 +2,6 @@ const Base = require("./base.js");
 const rp = require("request-promise");
 module.exports = class extends Base {
   async loginByWeixinAction() {
-    // const code = this.post('code');
     const code = this.post("code");
     let currentTime = parseInt(new Date().getTime() / 1000);
     const clientIp = ""; // 暂时不记录 ip test git

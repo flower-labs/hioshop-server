@@ -8,7 +8,7 @@ module.exports = class extends Base {
   async indexAction() {
     const page = this.post('page');
     const size = this.post('size');
-    // const userId = this.getLoginUserId();
+    const userId = this.getLoginUserId();
     const model = this.model('baby');
     const is_today = this.post('is_today');
     const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
@@ -21,14 +21,14 @@ module.exports = class extends Base {
           start_time: 'desc',
         })
         .page(page, size)
-        .where({ start_time: { '>=': todayTime }, is_delete: 0 })
+        .where({ user_id: userId, start_time: { '>=': todayTime }, is_delete: 0 })
         .countSelect();
     } else {
       babyList = await model
         .order({
           start_time: 'desc',
         })
-        .where({ start_time: { '<': todayTime }, is_delete: 0 })
+        .where({ user_id: userId,start_time: { '<': todayTime }, is_delete: 0 })
         .page(page, size)
         .countSelect();
     }
@@ -40,7 +40,7 @@ module.exports = class extends Base {
 
   // baby记录统计数据
   async analysisAction() {
-    // const userId = this.getLoginUserId();
+    const userId = this.getLoginUserId();
     const duration = this.post('duration');
     const model = this.model('baby');
 
@@ -56,7 +56,7 @@ module.exports = class extends Base {
       .order({
         start_time: 'desc',
       })
-      .where({ start_time: { '>=': daysBefore }, is_delete: 0 })
+      .where({ user_id: userId,start_time: { '>=': daysBefore }, is_delete: 0 })
       .select();
 
     return this.success({
@@ -66,7 +66,7 @@ module.exports = class extends Base {
 
   // 新增记录
   async addAction() {
-    // const userId = this.getLoginUserId();
+    const userId = this.getLoginUserId();
     const type = this.post('type');
     const count = this.post('count');
     const drink_amount = this.post('drink_amount');
@@ -83,6 +83,7 @@ module.exports = class extends Base {
       drink_amount,
       start_time,
       end_time,
+      user_id: userId,
       create_time: currentTimestamp,
     };
 
@@ -97,6 +98,7 @@ module.exports = class extends Base {
   // 删除记录
   async deleteAction() {
     const record_id = this.post('record_id');
+    const userId = this.getLoginUserId();
 
     const orderInfo = await this.model('baby')
       .where({
@@ -111,6 +113,7 @@ module.exports = class extends Base {
     const succesInfo = await this.model('baby')
       .where({
         id: record_id,
+        user_id: userId,
       })
       .update({
         is_delete: 1,
@@ -119,7 +122,7 @@ module.exports = class extends Base {
   }
 
   async editAction() {
-    // let userId = this.getLoginUserId();
+    let userId = this.getLoginUserId();
     const uuid = this.post('uuid');
     // 记录类型
     const type = this.post('type');
@@ -141,6 +144,7 @@ module.exports = class extends Base {
     await this.model('baby')
       .where({
         uuid,
+        user_id: userId,
       })
       .update(data);
     return this.success({

@@ -11,7 +11,8 @@ module.exports = class extends Base {
   async saveAction() {
     let userId = this.getLoginUserId();
     let name = this.post("name");
-    let mobile = this.post("mobile");
+    let mobile = '';
+    // let mobile = this.post("mobile");
     let nickName = this.post("nickName");
     let avatar = this.post("avatar");
     let name_mobile = 0;

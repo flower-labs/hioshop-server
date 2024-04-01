@@ -241,13 +241,13 @@ module.exports = class extends Base {
       return this.fail(400, '预约订单状态异常，请稍后再试');
     }
 
-    const succesInfo = await this.model('reserve_order')
+    const successInfo = await this.model('reserve_order')
       .where({
         id: orderId,
       })
       .update({
         status: 1006,
       });
-    return this.success(succesInfo);
+    return this.success(successInfo);
   }
 };

@@ -13,6 +13,14 @@ module.exports = class extends Base {
     const is_today = this.post('is_today');
     const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
 
+    // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
+    const groupUsers = await this.model('baby_group')
+      .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
+      .field('user_ids')
+      .find();
+
+    const usersArray = groupUsers ? groupUsers.user_ids.split(',') : [userId];
+
     let babyList = [];
 
     if (is_today) {
@@ -21,14 +29,14 @@ module.exports = class extends Base {
           start_time: 'desc',
         })
         .page(page, size)
-        .where({ user_id: userId, start_time: { '>=': todayTime }, is_delete: 0 })
+        .where({ user_id: usersArray, start_time: { '>=': todayTime }, is_delete: 0 })
         .countSelect();
     } else {
       babyList = await model
         .order({
           start_time: 'desc',
         })
-        .where({ user_id: userId,start_time: { '<': todayTime }, is_delete: 0 })
+        .where({ user_id: usersArray, start_time: { '<': todayTime }, is_delete: 0 })
         .page(page, size)
         .countSelect();
     }
@@ -50,13 +58,21 @@ module.exports = class extends Base {
 
     const daysBefore = Math.floor(moment().subtract(Number(duration), 'days').startOf('day').valueOf() / 1000);
 
+    // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
+    const groupUsers = await this.model('baby_group')
+      .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
+      .field('user_ids')
+      .find();
+
+    const usersArray = groupUsers ? groupUsers.user_ids.split(',') : [userId];
+
     let babyAnalysisList = [];
 
     babyAnalysisList = await model
       .order({
         start_time: 'desc',
       })
-      .where({ user_id: userId,start_time: { '>=': daysBefore }, is_delete: 0 })
+      .where({ user_id: usersArray, start_time: { '>=': daysBefore }, is_delete: 0 })
       .select();
 
     return this.success({
@@ -151,5 +167,126 @@ module.exports = class extends Base {
       success: 1,
       messsage: '编辑记录成功',
     });
+  }
+
+  // 创建群组
+  async addGroupAction() {
+    const userId = this.getLoginUserId();
+    const currentTimestamp = moment().unix();
+    const group_name = this.post('group_name');
+    const extra = this.post('extra');
+
+    const groupRecordData = {
+      uuid: uuid.v4(),
+      group_name,
+      owner_id: userId,
+      user_ids: String(userId),
+      extra,
+      create_time: currentTimestamp,
+      update_time: currentTimestamp,
+    };
+
+    await this.model('baby_group').add(groupRecordData);
+
+    return this.success({
+      success: 1,
+      message: '新增记录成功',
+    });
+  }
+
+  // 获取群组列表
+  async indexGroupAction() {
+    // { user_ids: ['like', `%${userId}%`], is_delete: 0 }
+    const userId = this.getLoginUserId();
+    const groupList = await this.model('baby_group')
+      .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
+      .field('id,group_name,owner_id,user_ids,extra,create_time')
+      .select();
+    return this.success({
+      groupList,
+    });
+  }
+
+  // 生成邀请码
+  async generateInviteCodeAction() {
+    const userId = this.getLoginUserId();
+    const groupId = this.post('group_id');
+    const inviteCode = uuid.v4();
+    const validTime = moment().add(3, 'days').valueOf();
+
+    const inviteCodeData = {
+      user_id: userId,
+      group_id: groupId,
+      invite_code: inviteCode,
+      valid_time: validTime / 1000,
+    };
+    await this.model('baby_invite').add(inviteCodeData);
+    return this.success({
+      success: 1,
+      message: '邀请码生成成功',
+      code: inviteCode,
+    });
+  }
+
+  // 接受加入群组邀请
+  async acceptInviteAction() {
+    const userId = this.getLoginUserId();
+    const inviteCode = this.post('code');
+
+    // 判断验证码是否有效，有效则执行对应群组的扩员操作
+    const inviteCodeRecord = await this.model('baby_invite')
+      .where({
+        invite_code: inviteCode,
+        is_delete: 0,
+      })
+      .find();
+
+    if (think.isEmpty(inviteCodeRecord)) {
+      return this.fail(400, '邀请码不存在，请检查后重试');
+    }
+
+    if (moment().isAfter(moment.unix(inviteCodeRecord.valid_time))) {
+      return this.fail(400, '邀请码已过期，请联系邀请人重新生成');
+    }
+
+    const groupId = inviteCodeRecord.group_id;
+
+    const groupRecord = await this.model('baby_group')
+      .where({
+        id: groupId,
+        is_delete: 0,
+      })
+      .find();
+
+    if (think.isEmpty(groupRecord)) {
+      return this.fail(400, '群组不存在，请检查后重试');
+    }
+
+    // 通过校验将is_delete置为1
+    await this.model('baby_invite')
+      .where({
+        invite_code: inviteCode,
+        is_delete: 0,
+      })
+      .update({
+        is_delete: 1,
+      });
+
+    // 将新的用户 ID 添加到 userIds 字段中
+    const userIds = groupRecord.user_ids ? groupRecord.user_ids.split(',') : [];
+    if (userIds.indexOf(userId.toString()) === -1) {
+      userIds.push(userId.toString());
+    }
+
+    // 通过检验后，更新群组记录
+    const successInfo = await this.model('baby_group')
+      .where({
+        id: groupId,
+        is_delete: 0,
+      })
+      .update({
+        user_ids: userIds.join(','),
+      });
+    return this.success(successInfo);
   }
 };

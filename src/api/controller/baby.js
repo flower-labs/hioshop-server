@@ -19,7 +19,7 @@ module.exports = class extends Base {
       .field('user_ids')
       .find();
 
-    const usersArray = groupUsers ? groupUsers.user_ids.split(',') : [userId];
+    const usersArray = groupUsers.user_ids ? groupUsers.user_ids.split(',') : [userId];
 
     let babyList = [];
 
@@ -64,7 +64,7 @@ module.exports = class extends Base {
       .field('user_ids')
       .find();
 
-    const usersArray = groupUsers ? groupUsers.user_ids.split(',') : [userId];
+    const usersArray = groupUsers.user_ids ? groupUsers.user_ids.split(',') : [userId];
 
     let babyAnalysisList = [];
 

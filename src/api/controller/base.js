@@ -4,6 +4,12 @@ module.exports = class extends think.Controller {
 		const token = this.ctx.header['x-hioshop-token'] || '';
 		const tokenSerivce = think.service('token', 'api');
 		think.userId = tokenSerivce.getUserId(token);
+		 // 只允许登录操作
+		 if (this.ctx.controller != 'auth') {
+			if (think.userId <= 0 || think.userId == undefined) {
+			  return this.fail(401, '请先登录');
+			}
+		  }
 	}
 	/**
 	 * 获取时间戳

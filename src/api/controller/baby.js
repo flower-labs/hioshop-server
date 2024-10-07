@@ -85,6 +85,7 @@ module.exports = class extends Base {
     const userId = this.getLoginUserId();
     const type = this.post('type');
     const count = this.post('count');
+    const recordName = this.post('record_name');
     const drink_amount = this.post('drink_amount');
     const extra = this.post('extra');
     const start_time = this.post('start_time');
@@ -100,6 +101,7 @@ module.exports = class extends Base {
       start_time,
       end_time,
       user_id: userId,
+      record_name: recordName || '',
       create_time: currentTimestamp,
     };
 

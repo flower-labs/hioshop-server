@@ -291,4 +291,109 @@ module.exports = class extends Base {
       });
     return this.success(successInfo);
   }
+
+  // 创建baby信息
+  async addBabyDetailAction() {
+    const name = this.post('baby_name');
+    const sex = this.post('baby_sex');
+    const birth = this.post('baby_birth');
+    const height = this.post('baby_height');
+    const weight = this.post('baby_weight');
+    const relation = this.post('baby_relation');
+    const bloodType = this.post('baby_blood_type');
+    const extra = this.post('extra');
+
+    const userId = this.getLoginUserId();
+    const currentTimestamp = moment().unix();
+
+    // 异常默认填充男孩
+    const formattedSex = isNaN(Number(sex)) ? 1 : Number(sex);
+
+    // 记录已存在，拒绝重复添加
+    let existRecord = await this.model('baby_info').where({ user_id: userId, is_delete: 0 }).find();
+    if (!think.isEmpty(existRecord)) {
+      return this.fail(400, '宝贝信息已存在，请勿重新添加');
+    }
+
+    const recordData = {
+      uuid: uuid.v4(),
+      user_id: userId,
+      baby_name: name,
+      baby_birth: birth,
+      baby_sex: formattedSex,
+      baby_relation: relation,
+      baby_blood_type: bloodType,
+      baby_height: height,
+      baby_weight: weight,
+      baby_extra: extra,
+      create_time: currentTimestamp,
+      update_time: currentTimestamp,
+    };
+
+    await this.model('baby_info').add(recordData);
+    return this.success({
+      success: 1,
+      messsage: '新增记录成功',
+    });
+  }
+
+  // 获取baby信息
+  async getBabyDetailAction() {
+    const userId = this.getLoginUserId();
+    const model = this.model('baby_info');
+
+    const babyDetail = await model.where({ user_id: userId, is_delete: 0 }).select();
+    // 移除隐藏字段
+    const processedBabyDetail = (babyDetail || []).map(detail => {
+      const { id, user_id, create_time, update_time, is_delete, ...rest } = detail;
+      return rest;
+    });
+
+    return this.success(processedBabyDetail);
+  }
+
+  // 更新baby信息记录
+  async editBabyDetailAction() {
+    let userId = this.getLoginUserId();
+    const uuid = this.post('uuid');
+    const name = this.post('baby_name');
+    const sex = this.post('baby_sex');
+    const extra = this.post('extra');
+    const birth = this.post('baby_birth');
+    const height = this.post('baby_height');
+    const weight = this.post('baby_weight');
+    const bloodType = this.post('baby_blood_type');
+
+    let existRecord = await this.model('baby_info').where({ user_id: userId, is_delete: 0 }).find();
+    if (think.isEmpty(existRecord)) {
+      return this.fail(400, '宝贝信息不存在，请联系管理员');
+    }
+
+    console.log('existRecord', existRecord.uuid, uuid);
+
+    if (!uuid || uuid !== existRecord.uuid) {
+      return this.fail('uuid参数错误');
+    }
+
+    const needUpdateInfos = {
+      baby_name: name,
+      baby_sex: sex,
+      baby_extra: extra,
+      baby_birth: birth,
+      baby_height: height,
+      baby_weight: weight,
+      baby_blood_type: bloodType,
+    };
+
+    await this.model('baby_info')
+      .where({
+        uuid,
+        user_id: userId,
+      })
+      .update(needUpdateInfos);
+    return this.success({
+      success: 1,
+      messsage: '宝贝信息编辑成功',
+    });
+  }
 };

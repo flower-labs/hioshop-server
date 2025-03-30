@@ -57,7 +57,7 @@ module.exports = class extends Base {
         last_login_ip: clientIp,
       });
     const newUserInfo = await this.model("user")
-      .field("id,username,nickname, avatar")
+      .field("id,username,nickname, avatar, register_time")
       .where({
         id: userId,
       })

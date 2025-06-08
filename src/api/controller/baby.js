@@ -204,8 +204,24 @@ module.exports = class extends Base {
       .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
       .field('id,group_name,owner_id,user_ids,extra,create_time')
       .select();
+
+    if (groupList.length > 0) {
+      const currentGroup = groupList[0];
+      const ownerUserId = currentGroup.owner_id;
+      const memberIds = currentGroup.user_ids.split(',').map(item => Number(item));
+      const allIds = [ownerUserId, ...memberIds];
+      const users = await this.model('user')
+        .where({ id: ['IN', allIds] })
+        .field('id,nickname,avatar')
+        .select();
+      return this.success({
+        groupList,
+        userInfoList: users,
+      });
+    }
     return this.success({
-      groupList,
+      groupList: [],
+      userInfoList: [],
     });
   }
 

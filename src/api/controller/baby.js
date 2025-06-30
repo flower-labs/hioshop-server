@@ -11,6 +11,8 @@ module.exports = class extends Base {
     const userId = this.getLoginUserId();
     const model = this.model('baby');
     const is_today = this.post('is_today');
+    // TODO： 增加参数校验
+    const babyId = this.post('baby_info_id');
     const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
 
     // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
@@ -29,14 +31,14 @@ module.exports = class extends Base {
           start_time: 'desc',
         })
         .page(page, size)
-        .where({ user_id: usersArray, start_time: { '>=': todayTime }, is_delete: 0 })
+        .where({ user_id: usersArray, start_time: { '>=': todayTime }, baby_info_id: babyId, is_delete: 0 })
         .countSelect();
     } else {
       babyList = await model
         .order({
           start_time: 'desc',
         })
-        .where({ user_id: usersArray, start_time: { '<': todayTime }, is_delete: 0 })
+        .where({ user_id: usersArray, start_time: { '<': todayTime }, baby_info_id: babyId, is_delete: 0 })
         .page(page, size)
         .countSelect();
     }
@@ -90,6 +92,7 @@ module.exports = class extends Base {
     const extra = this.post('extra');
     const start_time = this.post('start_time');
     const end_time = this.post('end_time');
+    const babyId = this.post('baby_info_id');
     const currentTimestamp = moment().unix();
 
     const recordData = {
@@ -101,6 +104,7 @@ module.exports = class extends Base {
       start_time,
       end_time,
       user_id: userId,
+      baby_info_id: babyId,
       record_name: recordName || '',
       create_time: currentTimestamp,
     };
@@ -346,7 +350,19 @@ module.exports = class extends Base {
       update_time: currentTimestamp,
     };
 
-    await this.model('baby_info').add(recordData);
+    const babyId = await this.model('baby_info').add(recordData);
+
+    const userIds = [userId];
+
+    if (userIds.length > 0) {
+      await this.model('user_baby').addMany(
+        userIds.map(userId => ({
+          baby_info_id: babyId,
+          user_id: userId,
+        })),
+      );
+    }
+
     return this.success({
       success: 1,
       messsage: '新增记录成功',
@@ -356,16 +372,20 @@ module.exports = class extends Base {
   // 获取baby信息
   async getBabyDetailAction() {
     const userId = this.getLoginUserId();
-    const model = this.model('baby_info');
+    const babyModel = this.model('baby_info');
+    const relationModel = this.model('user_baby');
 
-    const babyDetail = await model.where({ user_id: userId, is_delete: 0 }).select();
-    // 移除隐藏字段
-    const processedBabyDetail = (babyDetail || []).map(detail => {
-      const { id, user_id, create_time, update_time, is_delete, ...rest } = detail;
-      return rest;
-    });
+    const babyList = await relationModel.where({ user_id: userId, is_delete: 0 }).select();
+    const babyInfos = (babyList || []).map(item => item.baby_info_id);
 
-    return this.success(processedBabyDetail);
+    if (babyInfos.length > 0) {
+      const babyDetail = await babyModel
+        .where({ id: ['IN', babyInfos.join(',')], is_delete: 0 })
+        .field(`id,uuid,baby_weight,baby_sex,baby_relation,baby_name,baby_height,baby_extra,baby_blood_type,baby_birth`)
+        .select();
+      return this.success(babyDetail);
+    }
+    return this.success([]);
   }
 
   // 更新baby信息记录

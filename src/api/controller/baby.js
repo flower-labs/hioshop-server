@@ -388,6 +388,28 @@ module.exports = class extends Base {
     return this.success([]);
   }
 
+  // 获取baby信息
+  async getBabyRelationAction() {
+    const babyId = this.post('baby_id');
+    const checkResult = await this.model('user_baby')
+      .alias('ub')
+      .field('u.id,u.username,u.nickname, u.avatar, u.register_time, ub.relation_name')
+      .join({
+        table: 'user',
+        as: 'u',
+        on: ['ub.user_id', 'u.id'],
+      })
+      .where({ 'ub.baby_info_id': babyId })
+      .select();
+
+    const responseResult = checkResult.map(item => {
+      item.nickname = Buffer.from(item.nickname, 'base64').toString();
+      return item;
+    });
+
+    return this.success(responseResult);
+  }
+
   // 更新baby信息记录
   async editBabyDetailAction() {
     let userId = this.getLoginUserId();

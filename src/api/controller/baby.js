@@ -381,7 +381,7 @@ module.exports = class extends Base {
     if (babyInfos.length > 0) {
       const babyDetail = await babyModel
         .where({ id: ['IN', babyInfos.join(',')], is_delete: 0 })
-        .field(`id,uuid,baby_weight,baby_sex,baby_relation,baby_name,baby_height,baby_extra,baby_blood_type,baby_birth`)
+        .field(`id,uuid,baby_weight,baby_sex,baby_relation,baby_name,baby_height,baby_extra,baby_blood_type,baby_birth,create_time`)
         .select();
       return this.success(babyDetail);
     }
@@ -422,9 +422,19 @@ module.exports = class extends Base {
     const weight = this.post('baby_weight');
     const bloodType = this.post('baby_blood_type');
 
-    let existRecord = await this.model('baby_info').where({ user_id: userId, is_delete: 0 }).find();
+   
+
+    let existRecord = await this.model('baby_info').where({ uuid: uuid, is_delete: 0 }).find();
+
     if (think.isEmpty(existRecord)) {
       return this.fail(400, '宝贝信息不存在，请联系管理员');
+    }
+
+    const babyList = await this.model('user_baby').where({ user_id: userId, is_delete: 0 }).select();
+    const babyIdList = (babyList || []).map(item => item.baby_info_id);
+
+    if(!babyIdList.find(item => item === existRecord.id)) {
+      return this.fail(400, '当前登录用户不是宝贝抚养人，拒绝修改操作');
     }
 
     console.log('existRecord', existRecord.uuid, uuid);

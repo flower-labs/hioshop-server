@@ -329,11 +329,6 @@ module.exports = class extends Base {
     // 异常默认填充男孩
     const formattedSex = isNaN(Number(sex)) ? 1 : Number(sex);
 
-    // 记录已存在，拒绝重复添加
-    let existRecord = await this.model('baby_info').where({ user_id: userId, is_delete: 0 }).find();
-    if (!think.isEmpty(existRecord)) {
-      return this.fail(400, '宝贝信息已存在，请勿重新添加');
-    }
 
     const recordData = {
       uuid: uuid.v4(),
@@ -359,6 +354,8 @@ module.exports = class extends Base {
         userIds.map(userId => ({
           baby_info_id: babyId,
           user_id: userId,
+          relation_name: relation,
+          is_delete: 0,
         })),
       );
     }

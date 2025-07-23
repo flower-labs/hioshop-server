@@ -451,10 +451,7 @@ module.exports = class extends Base {
     };
 
     await this.model('baby_info')
-      .where({
-        uuid,
-        user_id: userId,
-      })
+      .where({uuid})
       .update(needUpdateInfos);
     return this.success({
       success: 1,

@@ -4,85 +4,129 @@ const moment = require('moment');
 const { isNumber } = require('lodash');
 
 module.exports = class extends Base {
-  // 获取记录列表
-  async indexAction() {
-    const page = this.post('page');
-    const size = this.post('size');
+  // 创建baby信息
+  async addBabyDetailAction() {
+    const name = this.post('baby_name');
+    const sex = this.post('baby_sex');
+    const birth = this.post('baby_birth');
+    const height = this.post('baby_height');
+    const weight = this.post('baby_weight');
+    const relation = this.post('baby_relation');
+    const bloodType = this.post('baby_blood_type');
+    const extra = this.post('extra');
+
     const userId = this.getLoginUserId();
-    const model = this.model('baby');
-    const is_today = this.post('is_today');
-    // TODO： 增加参数校验
-    const babyId = this.post('baby_info_id');
-    const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
+    const currentTimestamp = moment().unix();
 
-    // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
-    const groupUsers = await this.model('baby_group')
-      .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
-      .field('user_ids')
-      .find();
+    // 异常默认填充男孩
+    const formattedSex = isNaN(Number(sex)) ? 1 : Number(sex);
 
-    const usersArray = groupUsers.user_ids ? groupUsers.user_ids.split(',') : [userId];
+    const recordData = {
+      uuid: uuid.v4(),
+      user_id: userId,
+      baby_name: name,
+      baby_birth: birth,
+      baby_sex: formattedSex,
+      baby_relation: relation,
+      baby_blood_type: bloodType,
+      baby_height: height,
+      baby_weight: weight,
+      baby_extra: extra,
+      create_time: currentTimestamp,
+      update_time: currentTimestamp,
+    };
 
-    let babyList = [];
+    const babyId = await this.model('baby_info').add(recordData);
 
-    if (is_today) {
-      babyList = await model
-        .order({
-          start_time: 'desc',
-        })
-        .page(page, size)
-        .where({ user_id: usersArray, start_time: { '>=': todayTime }, baby_info_id: babyId, is_delete: 0 })
-        .countSelect();
-    } else {
-      babyList = await model
-        .order({
-          start_time: 'desc',
-        })
-        .where({ user_id: usersArray, start_time: { '<': todayTime }, baby_info_id: babyId, is_delete: 0 })
-        .page(page, size)
-        .countSelect();
+    const userIds = [userId];
+
+    if (userIds.length > 0) {
+      await this.model('user_baby').addMany(
+        userIds.map(userId => ({
+          baby_info_id: babyId,
+          user_id: userId,
+          relation_name: relation,
+          is_delete: 0,
+        })),
+      );
     }
 
     return this.success({
-      babyList,
+      success: 1,
+      messsage: '新增记录成功',
     });
   }
 
-  // baby记录统计数据
-  async analysisAction() {
+  // 获取baby信息
+  async getBabyDetailAction() {
     const userId = this.getLoginUserId();
-    const duration = this.post('duration');
-    const model = this.model('baby');
+    const babyModel = this.model('baby_info');
+    const relationModel = this.model('user_baby');
 
-    if (!isNumber(duration)) {
-      return this.fail('时间区间参数错误，请检查');
+    const babyList = await relationModel.where({ user_id: userId, is_delete: 0 }).select();
+    const babyInfos = (babyList || []).map(item => item.baby_info_id);
+
+    if (babyInfos.length > 0) {
+      const babyDetail = await babyModel
+        .where({ id: ['IN', babyInfos.join(',')], is_delete: 0 })
+        .field(
+          `id,uuid,baby_weight,baby_sex,baby_relation,baby_name,baby_height,baby_extra,baby_blood_type,baby_birth,create_time`,
+        )
+        .select();
+      return this.success(babyDetail);
+    }
+    return this.success([]);
+  }
+
+  // 更新baby信息记录
+  async editBabyDetailAction() {
+    let userId = this.getLoginUserId();
+    const uuid = this.post('uuid');
+    const name = this.post('baby_name');
+    const sex = this.post('baby_sex');
+    const extra = this.post('baby_extra');
+    const birth = this.post('baby_birth');
+    const height = this.post('baby_height');
+    const weight = this.post('baby_weight');
+    const bloodType = this.post('baby_blood_type');
+
+    let existRecord = await this.model('baby_info').where({ uuid: uuid, is_delete: 0 }).find();
+
+    if (think.isEmpty(existRecord)) {
+      return this.fail(400, '宝贝信息不存在，请联系管理员');
     }
 
-    const daysBefore = Math.floor(moment().subtract(Number(duration), 'days').startOf('day').valueOf() / 1000);
+    const babyList = await this.model('user_baby').where({ user_id: userId, is_delete: 0 }).select();
+    const babyIdList = (babyList || []).map(item => item.baby_info_id);
 
-    // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
-    const groupUsers = await this.model('baby_group')
-      .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
-      .field('user_ids')
-      .find();
+    if (!babyIdList.find(item => item === existRecord.id)) {
+      return this.fail(400, '当前登录用户不是宝贝抚养人，拒绝修改操作');
+    }
 
-    const usersArray = groupUsers.user_ids ? groupUsers.user_ids.split(',') : [userId];
+    console.log('existRecord', existRecord.uuid, uuid);
 
-    let babyAnalysisList = [];
+    if (!uuid || uuid !== existRecord.uuid) {
+      return this.fail('uuid参数错误');
+    }
 
-    babyAnalysisList = await model
-      .order({
-        start_time: 'desc',
-      })
-      .where({ user_id: usersArray, start_time: { '>=': daysBefore }, is_delete: 0 })
-      .select();
+    const needUpdateInfos = {
+      baby_name: name,
+      baby_sex: sex,
+      baby_extra: extra,
+      baby_birth: birth,
+      baby_height: height,
+      baby_weight: weight,
+      baby_blood_type: bloodType,
+    };
 
+    await this.model('baby_info').where({ uuid }).update(needUpdateInfos);
     return this.success({
-      babyAnalysisList,
+      success: 1,
+      messsage: '宝贝信息编辑成功',
     });
   }
 
-  // 新增记录
+  // 新增baby行为记录
   async addAction() {
     const userId = this.getLoginUserId();
     const type = this.post('type');
@@ -110,41 +154,15 @@ module.exports = class extends Base {
     };
 
     await this.model('baby').add(recordData);
-    // 生成数据对象
+
     return this.success({
       success: 1,
       messsage: '新增记录成功',
     });
   }
 
-  // 删除记录
-  async deleteAction() {
-    const record_id = this.post('record_id');
-    const userId = this.getLoginUserId();
-
-    const orderInfo = await this.model('baby')
-      .where({
-        id: record_id,
-      })
-      .find();
-
-    if (think.isEmpty(orderInfo)) {
-      return this.fail(400, '记录获取异常，请稍后再试');
-    }
-
-    const succesInfo = await this.model('baby')
-      .where({
-        id: record_id,
-        user_id: userId,
-      })
-      .update({
-        is_delete: 1,
-      });
-    return this.success(succesInfo);
-  }
-
+  // 编辑baby行为记录
   async editAction() {
-    let userId = this.getLoginUserId();
     const uuid = this.post('uuid');
     // 记录类型
     const type = this.post('type');
@@ -163,15 +181,102 @@ module.exports = class extends Base {
       extra,
     };
 
-    await this.model('baby')
-      .where({
-        uuid,
-        user_id: userId,
-      })
-      .update(data);
+    await this.model('baby').where({ uuid }).update(data);
     return this.success({
       success: 1,
-      messsage: '编辑记录成功',
+      messsage: '编辑成功',
+    });
+  }
+
+  // 删除baby行为记录
+  async deleteAction() {
+    const record_id = this.post('record_id');
+
+    const orderInfo = await this.model('baby')
+      .where({
+        id: record_id,
+      })
+      .find();
+
+    if (think.isEmpty(orderInfo)) {
+      return this.fail(400, '记录获取异常，请稍后再试');
+    }
+
+    const succesInfo = await this.model('baby').where({ id: record_id }).update({
+      is_delete: 1,
+    });
+    return this.success(succesInfo);
+  }
+
+  // 获取baby行为记录列表
+  async indexAction() {
+    const page = this.post('page');
+    const size = this.post('size');
+    const model = this.model('baby');
+    const is_today = this.post('is_today');
+    const babyId = this.post('baby_info_id');
+    const todayTime = Math.floor(moment().startOf('day').valueOf() / 1000);
+
+    if (!isNumber(babyId)) {
+      return this.fail('时间区间参数错误，请检查');
+    }
+
+    // 根据userId查询群组数据，如果有群组则使用群组中所有成员查询
+    // const groupUsers = await this.model('baby_group')
+    //   .where(`FIND_IN_SET(${userId}, user_ids) > 0 AND is_delete = 0`)
+    //   .field('user_ids')
+    //   .find();
+
+    // console.log('groupUsers', groupUsers);
+    // const usersArray = groupUsers.user_ids ? groupUsers.user_ids.split(',') : [userId];
+
+    let babyList = [];
+
+    if (is_today) {
+      babyList = await model
+        .order({
+          start_time: 'desc',
+        })
+        .page(page, size)
+        .where({ start_time: { '>=': todayTime }, baby_info_id: babyId, is_delete: 0 })
+        .countSelect();
+    } else {
+      babyList = await model
+        .order({
+          start_time: 'desc',
+        })
+        .where({ start_time: { '<': todayTime }, baby_info_id: babyId, is_delete: 0 })
+        .page(page, size)
+        .countSelect();
+    }
+
+    return this.success({
+      babyList,
+    });
+  }
+
+  // baby行为记录统计数据
+  async analysisAction() {
+    const duration = this.post('duration');
+    const model = this.model('baby');
+
+    if (!isNumber(duration)) {
+      return this.fail('时间区间参数错误，请检查');
+    }
+
+    const daysBefore = Math.floor(moment().subtract(Number(duration), 'days').startOf('day').valueOf() / 1000);
+
+    let babyAnalysisList = [];
+
+    babyAnalysisList = await model
+      .order({
+        start_time: 'desc',
+      })
+      .where({ start_time: { '>=': daysBefore }, is_delete: 0 })
+      .select();
+
+    return this.success({
+      babyAnalysisList,
     });
   }
 
@@ -196,7 +301,7 @@ module.exports = class extends Base {
 
     return this.success({
       success: 1,
-      message: '新增记录成功',
+      message: '新增群组成功',
     });
   }
 
@@ -312,80 +417,7 @@ module.exports = class extends Base {
     return this.success(successInfo);
   }
 
-  // 创建baby信息
-  async addBabyDetailAction() {
-    const name = this.post('baby_name');
-    const sex = this.post('baby_sex');
-    const birth = this.post('baby_birth');
-    const height = this.post('baby_height');
-    const weight = this.post('baby_weight');
-    const relation = this.post('baby_relation');
-    const bloodType = this.post('baby_blood_type');
-    const extra = this.post('extra');
-
-    const userId = this.getLoginUserId();
-    const currentTimestamp = moment().unix();
-
-    // 异常默认填充男孩
-    const formattedSex = isNaN(Number(sex)) ? 1 : Number(sex);
-
-
-    const recordData = {
-      uuid: uuid.v4(),
-      user_id: userId,
-      baby_name: name,
-      baby_birth: birth,
-      baby_sex: formattedSex,
-      baby_relation: relation,
-      baby_blood_type: bloodType,
-      baby_height: height,
-      baby_weight: weight,
-      baby_extra: extra,
-      create_time: currentTimestamp,
-      update_time: currentTimestamp,
-    };
-
-    const babyId = await this.model('baby_info').add(recordData);
-
-    const userIds = [userId];
-
-    if (userIds.length > 0) {
-      await this.model('user_baby').addMany(
-        userIds.map(userId => ({
-          baby_info_id: babyId,
-          user_id: userId,
-          relation_name: relation,
-          is_delete: 0,
-        })),
-      );
-    }
-
-    return this.success({
-      success: 1,
-      messsage: '新增记录成功',
-    });
-  }
-
-  // 获取baby信息
-  async getBabyDetailAction() {
-    const userId = this.getLoginUserId();
-    const babyModel = this.model('baby_info');
-    const relationModel = this.model('user_baby');
-
-    const babyList = await relationModel.where({ user_id: userId, is_delete: 0 }).select();
-    const babyInfos = (babyList || []).map(item => item.baby_info_id);
-
-    if (babyInfos.length > 0) {
-      const babyDetail = await babyModel
-        .where({ id: ['IN', babyInfos.join(',')], is_delete: 0 })
-        .field(`id,uuid,baby_weight,baby_sex,baby_relation,baby_name,baby_height,baby_extra,baby_blood_type,baby_birth,create_time`)
-        .select();
-      return this.success(babyDetail);
-    }
-    return this.success([]);
-  }
-
-  // 获取baby信息
+  // 获取抚养人和baby关系列表
   async getBabyRelationAction() {
     const babyId = this.post('baby_id');
     const checkResult = await this.model('user_baby')
@@ -407,55 +439,17 @@ module.exports = class extends Base {
     return this.success(responseResult);
   }
 
-  // 更新baby信息记录
-  async editBabyDetailAction() {
-    let userId = this.getLoginUserId();
-    const uuid = this.post('uuid');
-    const name = this.post('baby_name');
-    const sex = this.post('baby_sex');
-    const extra = this.post('extra');
-    const birth = this.post('baby_birth');
-    const height = this.post('baby_height');
-    const weight = this.post('baby_weight');
-    const bloodType = this.post('baby_blood_type');
+  
 
-   
-
-    let existRecord = await this.model('baby_info').where({ uuid: uuid, is_delete: 0 }).find();
-
-    if (think.isEmpty(existRecord)) {
-      return this.fail(400, '宝贝信息不存在，请联系管理员');
-    }
-
-    const babyList = await this.model('user_baby').where({ user_id: userId, is_delete: 0 }).select();
-    const babyIdList = (babyList || []).map(item => item.baby_info_id);
-
-    if(!babyIdList.find(item => item === existRecord.id)) {
-      return this.fail(400, '当前登录用户不是宝贝抚养人，拒绝修改操作');
-    }
-
-    console.log('existRecord', existRecord.uuid, uuid);
-
-    if (!uuid || uuid !== existRecord.uuid) {
-      return this.fail('uuid参数错误');
-    }
-
-    const needUpdateInfos = {
-      baby_name: name,
-      baby_sex: sex,
-      baby_extra: extra,
-      baby_birth: birth,
-      baby_height: height,
-      baby_weight: weight,
-      baby_blood_type: bloodType,
+  async getQiniuTokenAction() {
+    const TokenSerivce = this.service('qiniu'); // 服务里返回token
+    let data = await TokenSerivce.getQiniuToken(); // 取得token值 goods
+    let qiniuToken = data.uploadToken;
+    let domain = data.domain;
+    let info = {
+      token: qiniuToken,
+      url: domain,
     };
-
-    await this.model('baby_info')
-      .where({uuid})
-      .update(needUpdateInfos);
-    return this.success({
-      success: 1,
-      messsage: '宝贝信息编辑成功',
-    });
+    return this.success(info);
   }
 };

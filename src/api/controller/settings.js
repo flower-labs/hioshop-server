@@ -1,4 +1,6 @@
 const Base = require('./base.js');
+const moment = require('moment');
+
 module.exports = class extends Base {
   async showSettingsAction() {
     let info = await this.model('show_settings')
@@ -59,14 +61,21 @@ module.exports = class extends Base {
     if (typeof backgroundImage !== 'string') {
       return this.fail(400, '参数不合法，请检查后重试');
     }
-    const info = await this.model('user').where({ id: userId }).update({ background_image: backgroundImage });
+    const updateTime = moment().unix();
+    const info = await this.model('user')
+      .where({ id: userId })
+      .update({ background_image: backgroundImage, background_update_time: updateTime });
+
     return this.success(info);
   }
 
   async getBackgroundAction() {
     const userId = this.getLoginUserId();
     if (userId != 0) {
-      const info = await this.model('user').where({ id: userId }).field('background_image').find();
+      const info = await this.model('user')
+        .where({ id: userId })
+        .field('background_image,background_update_time')
+        .find();
       return this.success(info);
     } else {
       return this.fail(100, '未登录');

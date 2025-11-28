@@ -2,7 +2,7 @@ const Base = require('./base.js');
 
 module.exports = class extends Base {
   /**
-   * 新增用户体重身高数据
+   * 新增宝贝体重身高数据
    */
   async addAction() {
     try {
@@ -41,7 +41,7 @@ module.exports = class extends Base {
   }
 
   /**
-   * 删除用户体重身高数据
+   * 删除宝贝体重身高记录
    */
   async deleteAction() {
     try {
@@ -70,7 +70,7 @@ module.exports = class extends Base {
   }
 
   /**
-   * 更新用户体重身高数据
+   * 更新宝贝体重身高数据
    */
   async updateAction() {
     try {
@@ -125,7 +125,7 @@ module.exports = class extends Base {
   }
 
   /**
-   * 查询用户体重身高数据列表
+   * 查询宝贝体重身高数据列表
    */
   async listAction() {
     try {
@@ -145,7 +145,7 @@ module.exports = class extends Base {
   }
 
   /**
-   * 查询单条记录详情
+   * 查询单条身高体重记录详情
    */
   async detailAction() {
     try {
@@ -172,14 +172,14 @@ module.exports = class extends Base {
   }
 
   /**
-   * 获取用户最新的健康数据
+   * 获取宝贝最新的健康数据
    */
   async latestAction() {
     try {
-      const baby_id = this.post('code');
+      const baby_id = this.post('baby_id');
 
       if (!baby_id) {
-        return this.fail('用户ID不能为空');
+        return this.fail('宝贝ID不能为空');
       }
 
       const record = await this.model('baby_body_info')

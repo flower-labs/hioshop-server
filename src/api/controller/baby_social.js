@@ -139,15 +139,23 @@ module.exports = class extends Base {
    */
   async listAction() {
     try {
-      const { privacy_type = "FAMILY" } = this.post();
+      const {
+        privacy_type = "FAMILY",
+        page = 1,
+        page_size = 10
+      } = this.post();
 
       const userId = this.getLoginUserId();
       if (!userId) {
         return this.fail(401, '请先登录');
       }
 
+      // 参数验证
+      const currentPage = Math.max(1, parseInt(page) || 1);
+      const limit = Math.min(50, Math.max(1, parseInt(page_size) || 10)); // 限制每页最多50条
+
       const socialModel = this.model('baby_social');
-      const result = await socialModel.getSocialList(userId, privacy_type);
+      const result = await socialModel.getSocialList(userId, privacy_type, currentPage, limit);
 
       return this.success(result);
     } catch (e) {

@@ -6,7 +6,7 @@ module.exports = class extends Base {
    */
   async addAction() {
     try {
-      const { content, location, privacy_type, images } = this.post();
+      const { content, location, privacy_type, images, tags } = this.post();
 
       // 参数验证
       if (!content || content.trim() === '') {
@@ -18,6 +18,27 @@ module.exports = class extends Base {
       const finalPrivacyType = privacy_type && validPrivacyTypes.includes(privacy_type.toUpperCase()) 
         ? privacy_type.toUpperCase() 
         : 'FAMILY';
+
+      // 验证tags参数
+      if (tags && !Array.isArray(tags)) {
+        return this.fail(400, 'tags参数必须是数组格式');
+      }
+
+      if (tags && tags.length > 10) {
+        return this.fail(400, '每条朋友圈最多支持10个标签');
+      }
+
+      // 验证每个标签的格式和长度
+      if (tags && tags.length > 0) {
+        for (let tag of tags) {
+          if (typeof tag !== 'string' || tag.trim() === '') {
+            return this.fail(400, '标签不能为空');
+          }
+          if (tag.trim().length > 120) {
+            return this.fail(400, '标签长度不能超过120个字符');
+          }
+        }
+      }
 
       // 获取当前登录用户ID
       const userId = this.getLoginUserId();
@@ -37,6 +58,7 @@ module.exports = class extends Base {
       // 开启事务
       const socialModel = this.model('baby_social');
       const imageModel = this.model('baby_social_images');
+      const tagModel = this.model('baby_social_tags');
 
       // 插入朋友圈记录
       const socialId = await socialModel.add(socialData);
@@ -59,6 +81,25 @@ module.exports = class extends Base {
 
         if (validImages.length > 0) {
           imageIds = await imageModel.batchAddImages(socialId, validImages);
+        }
+      }
+
+      // 处理标签（如果有）
+      let tagIds = [];
+      if (tags && Array.isArray(tags) && tags.length > 0) {
+        try {
+          // 过滤有效的标签
+          const validTags = tags.filter(tag => 
+            typeof tag === 'string' && tag.trim() !== '' && tag.trim().length <= 120
+          );
+
+          if (validTags.length > 0) {
+            tagIds = await tagModel.batchAddTags(socialId, validTags);
+          }
+        } catch (tagError) {
+          // 如果标签添加失败，删除已创建的朋友圈记录
+          await socialModel.where({ id: socialId }).update({ is_delete: 1 });
+          return this.fail(400, tagError.message);
         }
       }
 
@@ -94,6 +135,7 @@ module.exports = class extends Base {
 
       const socialModel = this.model('baby_social');
       const imageModel = this.model('baby_social_images');
+      const tagModel = this.model('baby_social_tags');
 
       // 检查记录是否存在且属于当前用户
       const record = await socialModel
@@ -119,6 +161,9 @@ module.exports = class extends Base {
 
       // 软删除关联的图片
       await imageModel.softDeleteBySocialId(parseInt(id));
+
+      // 软删除关联的标签
+      await tagModel.softDeleteBySocialId(parseInt(id));
 
       if (socialResult) {
         return this.success({

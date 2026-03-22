@@ -136,6 +136,7 @@ module.exports = class extends Base {
       const socialModel = this.model('baby_social');
       const imageModel = this.model('baby_social_images');
       const tagModel = this.model('baby_social_tags');
+      const commentModel = this.model('baby_social_comment');
 
       // 检查记录是否存在且属于当前用户
       const record = await socialModel
@@ -164,6 +165,9 @@ module.exports = class extends Base {
 
       // 软删除关联的标签
       await tagModel.softDeleteBySocialId(parseInt(id));
+
+      // 软删除关联的评论
+      await commentModel.softDeleteBySocialId(parseInt(id));
 
       if (socialResult) {
         return this.success({

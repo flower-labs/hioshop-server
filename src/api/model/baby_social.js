@@ -45,16 +45,28 @@ module.exports = class extends think.Model {
       .limit(offset, limit)
       .select();
 
-    // 获取每条朋友圈的图片和标签列表
+    // 获取每条朋友圈的图片、标签和评论数
     if (list && list.length > 0) {
       const imageModel = this.model('baby_social_images');
       const tagModel = this.model('baby_social_tags');
+      const commentModel = this.model('baby_social_comment');
       
       // 收集所有social_id
       const socialIds = list.map(item => item.id);
       
       // 批量获取标签
       const tagsBySocialId = await tagModel.getTagsBySocialIds(socialIds);
+
+      // 批量获取每条朋友圈的评论数
+      const commentCountRows = await commentModel
+        .where({ social_id: ['IN', socialIds], is_delete: 0 })
+        .field('social_id, COUNT(*) as comment_count')
+        .group('social_id')
+        .select();
+      const commentCountMap = {};
+      for (const row of commentCountRows) {
+        commentCountMap[row.social_id] = parseInt(row.comment_count, 10) || 0;
+      }
       
       for (let item of list) {
         // 获取图片
@@ -67,6 +79,9 @@ module.exports = class extends think.Model {
         
         // 获取标签
         item.tags = tagsBySocialId[item.id] || [];
+
+        // 评论数
+        item.comment_count = commentCountMap[item.id] || 0;
       }
     }
 

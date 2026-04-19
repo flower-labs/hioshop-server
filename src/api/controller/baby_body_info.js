@@ -8,6 +8,7 @@ module.exports = class extends Base {
     try {
       const { baby_id, weight, height, measure_date } = this.post();
 
+
       if (!baby_id || !weight || !height) {
         return this.fail('参数不完整');
       }
@@ -45,14 +46,31 @@ module.exports = class extends Base {
    */
   async deleteAction() {
     try {
-      const { id } = this.post();
+      const { id, baby_id } = this.post();
 
-      if (!id) {
+      if (!id || !baby_id) {
         return this.fail(400, '参数不完整');
       }
 
+      const recordId = parseInt(id);
+      const babyId = parseInt(baby_id);
+
+      // 查询记录是否存在
+      const record = await this.model('baby_body_info')
+        .where({ id: recordId})
+        .find();
+
+      if (think.isEmpty(record)) {
+        return this.fail(400, '记录不存在');
+      }
+
+      // 校验该记录是否属于当前baby
+      if (record.baby_id !== babyId) {
+        return this.fail(403, '无权删除该记录');
+      }
+
       const result = await this.model('baby_body_info')
-        .where({ id: parseInt(id) })
+        .where({ id: recordId })
         .delete();
 
       if (result) {
@@ -61,7 +79,7 @@ module.exports = class extends Base {
           message: '删除成功',
         });
       } else {
-        return this.fail(400, '删除失败，记录不存在');
+        return this.fail(400, '删除失败');
       }
     } catch (e) {
       think.logger.error('删除用户健康数据错误:', e);
